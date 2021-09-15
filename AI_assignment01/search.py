@@ -1,6 +1,7 @@
 ###### Write Your Library Here ###########
 from collections import deque
 import heapq
+from math import sqrt
 
 
 
@@ -158,8 +159,21 @@ def astar(maze):
 
 
 
-def stage2_heuristic():
-    pass
+def stage2_heuristic(p1, p2): # Euclidean distance
+    return sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2) 
+
+def find_nearest_end_point(node, end_points): # 가장 가까운 end_point 찾기
+    min_h = stage2_heuristic(node.location, end_points[0])
+    nearest_end_point = end_points[0]
+    nearest_end_point_idx = 0
+    for i in range(1, len(end_points)):
+        h = stage2_heuristic(node.location, end_points[i])
+        if h < min_h:
+            min_h = h
+            nearest_end_point = end_points[i]
+            nearest_end_point_idx = i
+    
+    return nearest_end_point, nearest_end_point_idx
 
 
 def astar_four_circles(maze):
@@ -168,29 +182,73 @@ def astar_four_circles(maze):
     (단 Heurstic Function은 위의 stage2_heuristic function을 직접 정의하여 사용해야 한다.)
     """
 
+    start_point=maze.startPoint()
     end_points=maze.circlePoints()
     end_points.sort()
 
     path=[]
 
     ####################### Write Your Code Here ################################
+    
+    # start_node 초기화
+    start_node = Node(None, start_point)
 
+    # start_node로부터 가까운 end_point 찾아서 end_node 초기화
+    end_point, end_point_idx = find_nearest_end_point(start_node, end_points)
+    end_node = Node(None, end_point)
 
+    # frontier로 heapq 사용 (f값을 기준으로 정렬)
+    heap = []
+    heapq.heappush(heap, (start_node.f, start_node))
+    
+    # 방문 체크 및 경로 추적을 위한 변수 초기화
+    visited = [[0] * len(maze.mazeRaw[0]) for _ in range(len(maze.mazeRaw))]
+    visited[start_node.location[0]][start_node.location[1]] = 1
 
+    while end_points:
+        while heap:
+            # f값이 가장 적은 node 선택 및 방문 처리
+            current_node = heapq.heappop(heap)[1]
+            cur_x = current_node.location[0]
+            cur_y = current_node.location[1]
+            visited[cur_x][cur_y] = 1
 
+            if current_node.__eq__(end_node): # 목적지에 도달
+                traverse_node = current_node
+                while True:
+                    path.append((traverse_node.location[0], traverse_node.location[1]))
+                    if traverse_node.__eq__(start_node):
+                        break
+                    traverse_node = traverse_node.parent
+                
+                end_points.pop(end_point_idx) # end_points에서 제거
+                # 다음 방문할 end_point 선택
+                if len(end_points) > 0:
+                    start_node = Node(None, current_node.location)
+                    end_point, end_point_idx = find_nearest_end_point(start_node, end_points)
+                    end_node = Node(None, end_point)
+                    
+                    # heap 초기화
+                    heap = []
+                    heapq.heappush(heap, (start_node.f, start_node))
 
-
-
-
-
-
-
-
-
-
-
-
-
+                    visited = [[0] * len(maze.mazeRaw[0]) for _ in range(len(maze.mazeRaw))]
+                    visited[start_node.location[0]][start_node.location[1]] = 1
+                break
+            
+            for n in maze.neighborPoints(cur_x, cur_y):
+                if visited[n[0]][n[1]] == 1: # 이미 방문했을 시 skip
+                    continue
+                
+                new_node = Node(current_node, n)
+                new_node.g = current_node.g + 1 # cost는 한 칸
+                new_node.h = stage2_heuristic(end_node.location, new_node.location)
+                new_node.f = new_node.g + new_node.h
+                
+                # heap 안에 node가 이미 존재하면서 new_node보다 g값이 적은 경우엔 skip
+                if len([i[1] for i in heap if new_node == i[1] and new_node.g > i[1].g]) > 0:
+                    continue
+                heapq.heappush(heap, (new_node.f, new_node))
 
     return path
 
