@@ -143,12 +143,12 @@ def astar(maze):
             heapq.heappush(heap, (new_node.f, new_node))
 
     # 최단 경로 추적
-    cur_node = end_node
+    traverse_node = end_node
     while True:
-        path.append((cur_node.location[0], cur_node.location[1]))
-        if cur_node.__eq__(start_node):
+        path.append((traverse_node.location[0], traverse_node.location[1]))
+        if traverse_node.__eq__(start_node):
             break
-        cur_node = cur_node.parent
+        traverse_node = traverse_node.parent
 
     return path
 
@@ -161,6 +161,8 @@ def astar(maze):
 
 def stage2_heuristic(p1, p2): # Euclidean distance
     return sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2) 
+
+    # or manhattan distance * (1 + p)
 
 def find_nearest_end_point(node, end_points): # 가장 가까운 end_point 찾기
     min_h = stage2_heuristic(node.location, end_points[0])
@@ -213,27 +215,24 @@ def astar_four_circles(maze):
             cur_y = current_node.location[1]
             visited[cur_x][cur_y] = 1
 
-            if current_node.__eq__(end_node): # 목적지에 도달
-                traverse_node = current_node
-                while True:
-                    path.append((traverse_node.location[0], traverse_node.location[1]))
-                    if traverse_node.__eq__(start_node):
-                        break
-                    traverse_node = traverse_node.parent
-                
+            # 목적지에 도달
+            if current_node.__eq__(end_node):
                 end_points.pop(end_point_idx) # end_points에서 제거
+                
                 # 다음 방문할 end_point 선택
                 if len(end_points) > 0:
-                    start_node = Node(None, current_node.location)
-                    end_point, end_point_idx = find_nearest_end_point(start_node, end_points)
+                    end_point, end_point_idx = find_nearest_end_point(current_node, end_points)
                     end_node = Node(None, end_point)
                     
                     # heap 초기화
                     heap = []
-                    heapq.heappush(heap, (start_node.f, start_node))
-
+                    heapq.heappush(heap, (current_node.f, current_node))
+                    
+                    # 방문 정보 초기화
                     visited = [[0] * len(maze.mazeRaw[0]) for _ in range(len(maze.mazeRaw))]
-                    visited[start_node.location[0]][start_node.location[1]] = 1
+                    visited[current_node.location[0]][current_node.location[1]] = 1
+                else:
+                    end_node = current_node
                 break
             
             for n in maze.neighborPoints(cur_x, cur_y):
@@ -242,13 +241,21 @@ def astar_four_circles(maze):
                 
                 new_node = Node(current_node, n)
                 new_node.g = current_node.g + 1 # cost는 한 칸
-                new_node.h = stage2_heuristic(end_node.location, new_node.location)
+                new_node.h = manhatten_dist(end_node.location, new_node.location)
                 new_node.f = new_node.g + new_node.h
                 
                 # heap 안에 node가 이미 존재하면서 new_node보다 g값이 적은 경우엔 skip
                 if len([i[1] for i in heap if new_node == i[1] and new_node.g > i[1].g]) > 0:
                     continue
                 heapq.heappush(heap, (new_node.f, new_node))
+    
+    # 최단 경로 추적
+    traverse_node = end_node
+    while True:
+        path.append((traverse_node.location[0], traverse_node.location[1]))
+        if traverse_node.parent is None:
+            break
+        traverse_node = traverse_node.parent
 
     return path
 
