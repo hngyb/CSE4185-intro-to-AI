@@ -1,7 +1,6 @@
 ###### Write Your Library Here ###########
 from collections import deque
 import heapq
-from math import sqrt
 
 
 
@@ -50,6 +49,7 @@ def bfs(maze):
         path.append((cur_x, cur_y))
         cur_x, cur_y = visited[cur_x][cur_y]
 
+    path = path[::-1]
     return path
 
     ############################################################################
@@ -150,6 +150,7 @@ def astar(maze):
             break
         traverse_node = traverse_node.parent
 
+    path = path[::-1]
     return path
 
     ############################################################################
@@ -159,10 +160,15 @@ def astar(maze):
 
 
 
-def stage2_heuristic(p1, p2): # Euclidean distance
-    return sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2) 
+def stage2_heuristic(p1, p2):
+    # To break tie: manhatten distance * (1 + p)
+    # heuristic의 값을 미세하게 증가시킴으로써, 
+    # start_point보다 end_point에 가까운 노드를 선택하도록 한다.
+    # p < (minimum cost of taking one step) / (expected maximum path length)
 
-    # or manhattan distance * (1 + p)
+    manhatten_dist = abs(p1[0]-p2[0])+abs(p1[1]-p2[1])
+    return manhatten_dist * (1 + 0.001)
+
 
 def find_nearest_end_point(node, end_points): # 가장 가까운 end_point 찾기
     min_h = stage2_heuristic(node.location, end_points[0])
@@ -184,7 +190,6 @@ def astar_four_circles(maze):
     (단 Heurstic Function은 위의 stage2_heuristic function을 직접 정의하여 사용해야 한다.)
     """
 
-    start_point=maze.startPoint()
     end_points=maze.circlePoints()
     end_points.sort()
 
@@ -193,6 +198,7 @@ def astar_four_circles(maze):
     ####################### Write Your Code Here ################################
     
     # start_node 초기화
+    start_point=maze.startPoint()
     start_node = Node(None, start_point)
 
     # start_node로부터 가까운 end_point 찾아서 end_node 초기화
@@ -241,7 +247,7 @@ def astar_four_circles(maze):
                 
                 new_node = Node(current_node, n)
                 new_node.g = current_node.g + 1 # cost는 한 칸
-                new_node.h = manhatten_dist(end_node.location, new_node.location)
+                new_node.h = stage2_heuristic(end_node.location, new_node.location)
                 new_node.f = new_node.g + new_node.h
                 
                 # heap 안에 node가 이미 존재하면서 new_node보다 g값이 적은 경우엔 skip
@@ -257,6 +263,7 @@ def astar_four_circles(maze):
             break
         traverse_node = traverse_node.parent
 
+    path = path[::-1]
     return path
 
     ############################################################################
@@ -265,31 +272,38 @@ def astar_four_circles(maze):
 
 # -------------------- Stage 03: Many circles - A* Algorithm -------------------- #
 
-def mst(objectives, edges):
-
+def mst(edges, visited, start_point):
+    # Prim Algorithm
     cost_sum=0
     ####################### Write Your Code Here ################################
+    mst = []
+    visited[start_point[0]][start_point[1]] = 1
+    candidate = edges[start_point[0]][start_point[1]]
+    heapq.heapify(candidate)
+
+    while candidate:
+        cost, u, v = heapq.heappop(candidate)
+        if visited[v[0]][v[1]] == 0:
+            visited[v[0]][v[1]] = 1
+            mst.append((u, v))
+            cost_sum += cost
+            candidate = [] # 기존 Prim Algorithm과 다른 점
+
+            for edge in edges[v[0]][v[1]]:
+                if visited[edge[2][0]][edge[2][1]] == 0:
+                    heapq.heappush(candidate, edge)
 
 
 
-
-
-
-
-
-
-
-
-
-
-    return cost_sum
+    return cost_sum, mst
 
     ############################################################################
 
 
-def stage3_heuristic():
-    pass
-
+def stage3_heuristic(p1, p2):
+    # To break tie: manhatten distance * (1 + p)
+    manhatten_dist = abs(p1[0]-p2[0])+abs(p1[1]-p2[1])
+    return manhatten_dist * (1 + 0.001)
 
 def astar_many_circles(maze):
     """
@@ -304,27 +318,75 @@ def astar_many_circles(maze):
     path=[]
 
     ####################### Write Your Code Here ################################
+    start_point = maze.startPoint()
+    end_points.append(start_point)
+    edges = [[ [] for _ in range(len(maze.mazeRaw[0]))]  for _ in range(len(maze.mazeRaw))]
+    # 간선 비용 계산
+    for u in end_points:
+        for v in end_points:
+            if u == v: continue
+            cost = stage3_heuristic(u, v)
+            edges[u[0]][u[1]].append([cost, u, v])
 
+    visited = [[0] * len(maze.mazeRaw[0]) for _ in range(len(maze.mazeRaw))]
+    cost_sum, mst_list = mst(edges, visited, start_point)
+    
 
+    start_node = Node(None, start_point)
+    end_node = Node(None, mst_list[0][1])
+    visited = [[0] * len(maze.mazeRaw[0]) for _ in range(len(maze.mazeRaw))]
+    heap = []
+    heapq.heappush(heap, (start_node.f, start_node))
+    while mst_list:
+        while heap:
+            # f값이 가장 적은 node 선택 및 방문 처리
+            current_node = heapq.heappop(heap)[1]
+            cur_x = current_node.location[0]
+            cur_y = current_node.location[1]
+            visited[cur_x][cur_y] = 1
 
+            # 목적지에 도달
+            if current_node.__eq__(end_node):
+                mst_list.pop(0)
+                
+                # 다음 방문할 end_point 선택
+                if len(mst_list) > 0:
+                    end_node = Node(None, mst_list[0][1])
+                    
+                    # heap 초기화
+                    heap = []
+                    heapq.heappush(heap, (current_node.f, current_node))
+                    
+                    # 방문 정보 초기화
+                    visited = [[0] * len(maze.mazeRaw[0]) for _ in range(len(maze.mazeRaw))]
+                    visited[current_node.location[0]][current_node.location[1]] = 1
+                else:
+                    end_node = current_node
+                break
+            
+            for n in maze.neighborPoints(cur_x, cur_y):
+                if visited[n[0]][n[1]] == 1: # 이미 방문했을 시 skip
+                    continue
+                
+                new_node = Node(current_node, n)
+                new_node.g = current_node.g + 1 # cost는 한 칸
+                new_node.h = stage3_heuristic(end_node.location, new_node.location)
+                new_node.f = new_node.g + new_node.h
+                
+                # heap 안에 node가 이미 존재하면서 new_node보다 g값이 적은 경우엔 skip
+                if len([i[1] for i in heap if new_node == i[1] and new_node.g > i[1].g]) > 0:
+                    continue
+                heapq.heappush(heap, (new_node.f, new_node))
+    
+    # 최단 경로 추적
+    traverse_node = end_node
+    while True:
+        path.append((traverse_node.location[0], traverse_node.location[1]))
+        if traverse_node.parent is None:
+            break
+        traverse_node = traverse_node.parent
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    path = path[::-1]
     return path
 
     ############################################################################
